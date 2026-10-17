@@ -1,0 +1,13 @@
+Package: imajev-rs
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Maintainer: apiplant <releases@apiplant.com>
+Installed-Size: @INSTALLED_SIZE@
+Homepage: https://github.com/apiplant/imajev-rs
+Description: Rust (candle) inference for the Imajev image decision model
+ imajev classifies images against the options you set, with a probability on
+ each answer and an explicit can't-tell. It runs the Qwen3.5-4B vision model
+ with the Imajev LoRA adapter locally via candle (CLI, JSONL batch and an HTTP
+ server), downloading the model files from Hugging Face on first use.

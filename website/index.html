@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>imajev-rs — the Imajev image decision model in Rust</title>
+    <meta
+      name="description"
+      content="A Rust (candle) port of Imajev, the image decision model built on Qwen3.5-4B. Answers in the options you set, with a probability on each and an explicit can't-tell. CLI, HTTP server and Rust library."
+    />
+    <meta
+      name="keywords"
+      content="imajev, Qwen3.5, vision language model, image classification, decision model, calibrated probabilities, Rust, candle, CUDA, HTTP server"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://imajev-rs.apiplant.com/" />
+    <meta property="og:site_name" content="imajev-rs" />
+    <meta property="og:title" content="imajev-rs — the Imajev image decision model in Rust" />
+    <meta
+      property="og:description"
+      content="Rust (candle) inference for Imajev on Qwen3.5-4B: typed answers about photos with a probability on each and an explicit can't-tell, from a CLI, an HTTP server or a library."
+    />
+    <meta property="og:url" content="https://imajev-rs.apiplant.com/" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="imajev-rs — the Imajev image decision model in Rust" />
+    <meta
+      name="twitter:description"
+      content="Rust (candle) inference for Imajev on Qwen3.5-4B: answers about photos with a probability on each and an explicit can't-tell."
+    />
+    <meta name="theme-color" content="#171a21" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f2f5fa" media="(prefers-color-scheme: light)" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "imajev-rs",
+        "description": "Rust (candle) inference for the Imajev image decision model on Qwen3.5-4B, as a CLI, an HTTP server or a library.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS",
+        "url": "https://imajev-rs.apiplant.com/",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2327282f'/%3E%3Cpath d='M10 9v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5M22 9v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5' stroke='%234a9eff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%234a9eff'/%3E%3C/svg%3E"
+    />
+    <script>
+      // Set the theme before first paint so the page never flashes the wrong one.
+      (function () {
+        try {
+          var stored = localStorage.getItem("imajev-rs-theme");
+          var light =
+            stored === "light" ||
+            (!stored && window.matchMedia("(prefers-color-scheme: light)").matches);
+          if (light) document.documentElement.classList.add("light");
+          document.documentElement.style.colorScheme = light ? "light" : "dark";
+        } catch (_) {
+          /* private mode: dark is the default anyway */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>

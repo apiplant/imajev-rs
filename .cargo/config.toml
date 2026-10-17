@@ -1,0 +1,4 @@
+[env]
+# The CUDA toolkit version cudarc should assume (major*1000 + minor*10). Only read with `--features cuda`;
+# an already-set CUDARC_CUDA_VERSION wins, so CI and other machines override it from the environment.
+CUDARC_CUDA_VERSION = "13030"
