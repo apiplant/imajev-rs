@@ -34,7 +34,7 @@ imajev classify scans/*.png -l 'invoice:A bill to pay,receipt:Proof of payment' 
         />
         <FlagTable
           rows={[
-            { flag: "IMAGE...", meaning: "One or more JPEG/PNG files. The model loads once." },
+            { flag: "IMAGE...", meaning: <>Zero or more JPEG/PNG files. The model loads once. With none, the question is answered from <IC>--state</IC> alone.</> },
             { flag: "-l, --labels", meaning: <>Options, comma-separated. <IC>option:description</IC> adds a description; use <IC>;</IC> as the separator when a description has commas.</> },
             { flag: "-q, --question", meaning: <>The question (default <IC>Choose the best option.</IC>).</> },
             { flag: "-n, --name", meaning: <>Name of the question in the JSON output (default <IC>choice</IC>).</> },
@@ -62,7 +62,7 @@ imajev classify scans/*.png -l 'invoice:A bill to pay,receipt:Proof of payment' 
                 "criteria": ["casual", "smart casual", "formal"]}}}' | imajev predict`}
         />
         <P>
-          Each line has <IC>image</IC> (a file path), <IC>questions</IC> and an optional <IC>state</IC>. Output
+          Each line has <IC>questions</IC>, an optional <IC>image</IC> (a file path) and an optional <IC>state</IC>. Output
           lines are <IC>{'{"answers": {...}}'}</IC> in input order.
         </P>
       </Section>

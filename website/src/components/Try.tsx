@@ -52,6 +52,22 @@ const PRESETS: Preset[] = [
     ),
   },
   {
+    label: "Text only",
+    state: "I was charged twice for the same order in March.",
+    questions: JSON.stringify(
+      {
+        team: {
+          type: "choice",
+          instructions: "Which team should handle this request?",
+          criteria: { billing: "Billing and payment disputes", shipping: "Shipping and delivery", access: "Account access and login" },
+        },
+        upset: { type: "noul", instructions: "The customer sounds upset." },
+      },
+      null,
+      2,
+    ),
+  },
+  {
     label: "What is it?",
     state: "",
     questions: JSON.stringify(
@@ -193,8 +209,7 @@ export function Try() {
     setResult(null);
     setStatus(null);
     const image = file();
-    if (!image) return setError("Choose an image first.");
-    if (image.size > MAX_IMAGE_BYTES) return setError("The server accepts images up to 20 MiB.");
+    if (image && image.size > MAX_IMAGE_BYTES) return setError("The server accepts images up to 20 MiB.");
     let body: unknown;
     try {
       body = requestBody();
@@ -203,7 +218,7 @@ export function Try() {
     }
     const form = new FormData();
     form.set("request", JSON.stringify(body));
-    form.set("image", image, image.name);
+    if (image) form.set("image", image, image.name);
     setRunning(true);
     try {
       const r = await fetch(`${base()}/v1/systemone`, { method: "POST", body: form });
@@ -227,7 +242,9 @@ export function Try() {
     } catch {
       /* the editors show the problem */
     }
-    return `curl -s ${base()}/v1/systemone \\\n  -F 'request=${body.replace(/'/g, "'\\''")}' \\\n  -F 'image=@${file()?.name ?? "photo.jpg"};type=image/jpeg'`;
+    const parts = [`curl -s ${base()}/v1/systemone`, `-F 'request=${body.replace(/'/g, "'\\''")}'`];
+    if (file()) parts.push(`-F 'image=@${file()!.name};type=image/jpeg'`);
+    return parts.join(" \\\n  ");
   };
 
   const field = "w-full rounded-xl border border-line bg-surface p-3 font-mono text-[0.8125rem] text-ink outline-none focus:border-accent";
@@ -237,7 +254,7 @@ export function Try() {
       <p class="font-mono text-xs text-accent">talks to an imajev server you run · nothing is uploaded elsewhere</p>
       <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink">Try it</h1>
       <p class="mt-2 max-w-2xl leading-relaxed text-muted">
-        Imajev is a 4B-parameter vision-language model, too large to run in a page. Start{" "}
+        Imajev is a 4B-parameter vision-language model, too large to run in a page. The image is optional: text-only requests work too. Start{" "}
         <code class="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-ink">imajev serve --cors '*'</code>{" "}
         on a machine with a GPU, point this page at it, and send a photo with your questions. The request goes
         straight from your browser to your server.
@@ -265,7 +282,7 @@ export function Try() {
           </div>
 
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-faint">Image</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-faint">Image (optional)</p>
             <label class="mt-1.5 flex min-h-32 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-line-strong bg-surface text-sm text-muted hover:border-accent">
               <input
                 type="file"
@@ -273,7 +290,7 @@ export function Try() {
                 class="sr-only"
                 onChange={(e) => onFile(e.currentTarget.files?.[0] ?? null)}
               />
-              <Show when={preview()} fallback={<span>Choose a JPEG or PNG</span>}>
+              <Show when={preview()} fallback={<span>Choose a JPEG or PNG, or send text only</span>}>
                 <img src={preview()!} alt="Selected" class="max-h-64 w-full object-contain" />
               </Show>
             </label>

@@ -2,7 +2,7 @@
 //!
 //! * `POST /v1/systemone` (alias `POST /v1/classifier`): multipart form data with
 //!   `request` (JSON `{"state": text | object, "questions": {id: {"type": "choice", "instructions", "criteria"}}}`)
-//!   and one page image (`image`, JPEG or PNG, up to 20 MiB). Answers come back as
+//!   and optionally one image (`image`, JPEG or PNG, up to 20 MiB); without an image the answer comes from the state alone. Answers come back as
 //!   `{"model", "answers": {id: {type, choice, probabilities, confidence, unknown_probability, abstained}}, "usage"}`.
 //! * `GET /health`: `{"status":"ready","model":..}`, no inference.
 //!
@@ -35,7 +35,7 @@ pub trait Decider: Send + 'static {
     /// Most options a choice question may have; requests are validated against it before queueing.
     fn max_options(&self) -> usize;
     /// One request (synchronous; runs on the blocking pool).
-    fn decide(&mut self, state: &State, questions: &Value, image: &[u8]) -> Result<Answers>;
+    fn decide(&mut self, state: &State, questions: &Value, image: Option<&[u8]>) -> Result<Answers>;
 }
 
 impl Decider for Engine {
@@ -43,7 +43,7 @@ impl Decider for Engine {
         Engine::max_options(self)
     }
 
-    fn decide(&mut self, state: &State, questions: &Value, image: &[u8]) -> Result<Answers> {
+    fn decide(&mut self, state: &State, questions: &Value, image: Option<&[u8]>) -> Result<Answers> {
         Engine::decide(self, state, questions, image)
     }
 }
@@ -103,9 +103,9 @@ impl ServerState {
     }
 
     /// Validate, queue, and answer one request.
-    pub async fn execute(&self, state: State, questions: Value, image: Vec<u8>) -> Result<Answers, ExecError> {
+    pub async fn execute(&self, state: State, questions: Value, image: Option<Vec<u8>>) -> Result<Answers, ExecError> {
         // Validation never waits for the model lock: a bad request is answered even while a forward runs.
-        crate::engine::validate_request(&questions, &image, self.0.max_options).map_err(|e| ExecError::Invalid { param: "questions", message: e.to_string() })?;
+        crate::engine::validate_request(&questions, image.as_deref(), self.0.max_options).map_err(|e| ExecError::Invalid { param: "questions", message: e.to_string() })?;
         let permit = self.0.admission.clone().try_acquire_owned().map_err(|_| ExecError::QueueFull)?;
         let decider = self.0.decider.clone();
         // The permit and lock move into the blocking closure, so a client disconnect (dropping this future)
@@ -113,7 +113,7 @@ impl ServerState {
         let lock = decider.lock_owned().await;
         tokio::task::spawn_blocking(move || {
             let mut lock = lock;
-            let result = lock.decide(&state, &questions, &image);
+            let result = lock.decide(&state, &questions, image.as_deref());
             drop(lock);
             drop(permit);
             result
@@ -176,7 +176,6 @@ async fn systemone(AxumState(state): AxumState<ServerState>, mut multipart: Mult
         }
     }
     let Some(request) = request else { return invalid("request", "multipart form must include a 'request' JSON field") };
-    let Some(image) = image else { return invalid("image", "multipart form must include one page image field named 'image'") };
     let Some(body) = request.as_object() else { return invalid("request", "request must be a JSON object") };
     if let Some(model) = body.get("model") {
         if model.as_str() != Some(state.model_name()) {

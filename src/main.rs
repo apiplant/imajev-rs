@@ -96,8 +96,7 @@ enum Command {
     Classify {
         #[command(flatten)]
         engine: EngineArgs,
-        /// Images (JPEG or PNG).
-        #[arg(required = true)]
+        /// Images (JPEG or PNG). With none, the question is answered from `--state` alone.
         images: Vec<PathBuf>,
         /// Options, comma-separated; `option:description` adds a description. Separate with `;` instead when a
         /// description contains commas.
@@ -115,7 +114,7 @@ enum Command {
         #[arg(long, value_enum, default_value_t = Format::Text)]
         format: Format,
     },
-    /// Read JSONL requests `{"state", "questions", "image": "path.jpg"}` and write JSONL answers.
+    /// Read JSONL requests `{"state", "questions", "image": "path.jpg"}` (`image` is optional) and write JSONL answers.
     Predict {
         #[command(flatten)]
         engine: EngineArgs,
@@ -210,12 +209,25 @@ fn parse_state(state: Option<String>) -> Result<State> {
 fn classify(args: &EngineArgs, images: &[PathBuf], labels: &str, question: &str, name: &str, state: Option<String>, format: Format) -> Result<()> {
     let questions = json!({ name: {"type": "choice", "instructions": question, "criteria": parse_labels(labels)?} });
     let state = parse_state(state)?;
+    if images.is_empty() && state.0 == json!({}) {
+        bail!("give at least one image, or text evidence with --state");
+    }
     let mut engine = args.load()?;
     let mut out = std::io::stdout().lock();
+    if images.is_empty() {
+        let started = Instant::now();
+        let answers = engine.decide(&state, &questions, None)?;
+        eprintln!("text only: {:.2?}", started.elapsed());
+        match format {
+            Format::Json => writeln!(out, "{}", json!({"answers": answers_to_json(&answers)}))?,
+            Format::Text => write_text(&mut out, "(text only)", &answers)?,
+        }
+        return Ok(());
+    }
     for path in images {
         let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
         let started = Instant::now();
-        let answers = engine.decide(&state, &questions, &bytes).with_context(|| path.display().to_string())?;
+        let answers = engine.decide(&state, &questions, Some(&bytes)).with_context(|| path.display().to_string())?;
         eprintln!("{}: {:.2?}", path.display(), started.elapsed());
         match format {
             Format::Json => writeln!(out, "{}", json!({"image": path.display().to_string(), "answers": answers_to_json(&answers)}))?,
@@ -250,19 +262,22 @@ fn predict(args: &EngineArgs, input: Option<PathBuf>) -> Result<()> {
     let mut requests = Vec::new();
     for (i, line) in text.lines().enumerate().filter(|(_, l)| !l.trim().is_empty()) {
         let value: Value = serde_json::from_str(line).with_context(|| format!("line {}: invalid JSON", i + 1))?;
-        let image = value.get("image").and_then(Value::as_str).with_context(|| format!("line {}: \"image\" must be a file path", i + 1))?;
+        let image = match value.get("image") {
+            None | Some(Value::Null) => None,
+            Some(v) => Some(PathBuf::from(v.as_str().with_context(|| format!("line {}: \"image\" must be a file path", i + 1))?)),
+        };
         let questions = value.get("questions").with_context(|| format!("line {}: \"questions\" is required", i + 1))?.clone();
         let state = match value.get("state") {
             Some(v) => State::from_value(v).with_context(|| format!("line {}: state must be text or a JSON object/array", i + 1))?,
             None => State(json!({})),
         };
-        requests.push((i + 1, state, questions, PathBuf::from(image)));
+        requests.push((i + 1, state, questions, image));
     }
     let mut engine = args.load()?;
     let mut out = std::io::BufWriter::new(std::io::stdout().lock());
     for (line, state, questions, image) in requests {
-        let bytes = std::fs::read(&image).with_context(|| format!("line {line}: reading {}", image.display()))?;
-        let answers = engine.decide(&state, &questions, &bytes).with_context(|| format!("line {line}"))?;
+        let bytes = image.as_ref().map(|path| std::fs::read(path).with_context(|| format!("line {line}: reading {}", path.display()))).transpose()?;
+        let answers = engine.decide(&state, &questions, bytes.as_deref()).with_context(|| format!("line {line}"))?;
         writeln!(out, "{}", json!({"answers": answers_to_json(&answers)}))?;
         out.flush()?;
     }

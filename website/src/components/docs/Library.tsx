@@ -39,7 +39,7 @@ let questions = serde_json::json!({
         "criteria": {"listing.color": null, "listing.product_type": null, "none of these": null}},
 });
 let state = State::from_value(&serde_json::json!({"listing": {"color": "red", "product_type": "shoe"}})).unwrap();
-let answers = engine.decide(&state, &questions, &std::fs::read("listing.jpg")?)?;
+let answers = engine.decide(&state, &questions, Some(&std::fs::read("listing.jpg")?))?;
 
 for (id, answer) in &answers {
     println!("{id}: {:?} confidence {:.2}", answer.choice, answer.confidence);

@@ -23,7 +23,7 @@ impl Decider for Fake {
         255
     }
 
-    fn decide(&mut self, _state: &State, questions: &Value, _image: &[u8]) -> Result<Answers> {
+    fn decide(&mut self, _state: &State, questions: &Value, _image: Option<&[u8]>) -> Result<Answers> {
         if self.fail {
             anyhow::bail!("boom");
         }
@@ -89,10 +89,16 @@ async fn answers_a_request() {
 }
 
 #[tokio::test]
+async fn answers_text_only_requests() {
+    let (status, body) = post(state(false), multipart(Some(GOOD), None)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["answers"]["page_type"]["choice"], "exercise");
+}
+
+#[tokio::test]
 async fn rejects_bad_requests_with_422() {
     for (request, image, param) in [
         (None, Some(&b"img"[..]), "request"),
-        (Some(GOOD), None, "image"),
         (Some("{"), Some(&b"img"[..]), "request"),
         (Some(r#"{"state":"x","questions":{"q":{"type":"multi","instructions":"x"}}}"#), Some(&b"img"[..]), "questions"),
         (Some(r#"{"model":"other","state":"x","questions":{}}"#), Some(&b"img"[..]), "model"),

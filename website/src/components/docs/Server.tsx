@@ -27,7 +27,7 @@ imajev serve --device cuda:1 --host 0.0.0.0 --port 9000`} />
         <H2>Endpoints</H2>
         <FlagTable
           rows={[
-            { flag: "POST /v1/systemone", meaning: <>Multipart form: <IC>request</IC> (JSON <IC>{'{"state", "questions", "model"?}'}</IC>) and one <IC>image</IC>. Alias: <IC>/v1/classifier</IC>.</> },
+            { flag: "POST /v1/systemone", meaning: <>Multipart form: <IC>request</IC> (JSON <IC>{'{"state", "questions", "model"?}'}</IC>) and an optional <IC>image</IC> (without one, the answer comes from the state alone). Alias: <IC>/v1/classifier</IC>.</> },
             { flag: "GET /health", meaning: <><IC>{'{"status":"ready","model":"imajev-4b"}'}</IC>, no inference.</> },
           ]}
         />
@@ -42,7 +42,7 @@ imajev serve --device cuda:1 --host 0.0.0.0 --port 9000`} />
         <H2>Errors and back-pressure</H2>
         <FlagTable
           rows={[
-            { flag: "422", meaning: <>Bad input (invalid JSON, unsupported question, missing or oversized image): <IC>{'{"error": {"message", "type": "invalid_request_error", "code": 422, "param"}}'}</IC>.</> },
+            { flag: "422", meaning: <>Bad input (invalid JSON, unsupported question, empty or oversized image): <IC>{'{"error": {"message", "type": "invalid_request_error", "code": 422, "param"}}'}</IC>.</> },
             { flag: "429", meaning: <>The admission queue is full. <IC>Retry-After: 1</IC>.</> },
             { flag: "500", meaning: <><IC>{'{"detail": "internal error"}'}</IC>; the cause goes to stderr.</> },
           ]}

@@ -30,7 +30,7 @@ export function DocsOverview() {
 
       <Section>
         <H2>Questions</H2>
-        <P>A request is an image, optional evidence (the <IC>state</IC>), and up to eight named questions.</P>
+        <P>A request is an optional image, optional evidence (the <IC>state</IC>), and up to eight named questions.</P>
         <UL>
           <LI>
             <IC>choice</IC>: pick one option. <IC>criteria</IC> is <IC>{"{option: description | null}"}</IC>.
@@ -59,7 +59,7 @@ export function DocsOverview() {
         <P>
           <IC>state</IC> is text or a JSON object. Backticks in <IC>instructions</IC> refer to state keys or
           dotted paths. <IC>instructions</IC> can also be an object or an array, flattened to one line per entry.
-          Images are JPEG or PNG, up to 20 MiB, one per request.
+          Images are JPEG or PNG, up to 20 MiB, at most one per request. The image is optional: without it the question is answered from the state alone, through the same prompt minus the vision tokens. Wording matters either way; a vague question ("Which team?") can make the model say can't-tell where a specific one does not.
         </P>
       </Section>
 

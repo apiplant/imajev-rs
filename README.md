@@ -9,6 +9,8 @@ It runs [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) (revision `851
 and its trained 256-code decision readout. Each question is shown in four option orders, the log probabilities are
 averaged and calibrated (temperature 1.305), as in the reference runtime.
 
+- **Text-only works too:** leave the image out and the question is answered from the `state` alone, through the same prompt
+  without the vision tokens.
 - **Question types:** `choice` (pick one option), `noul` (yes/no, answered as a probability) and `score` (pick a level
   from an ordered list), with `state` as text or JSON next to the image.
 - **Use it as** a CLI (`imajev classify`, `imajev predict`), an HTTP server (`imajev serve`) or a Rust library.
@@ -52,7 +54,7 @@ listing.jpg
 ```
 
 `-l` takes `option` or `option:description`, comma-separated (use `;` when descriptions contain commas). `--state` is
-text or a JSON object. `--format json` prints one object per image.
+text or a JSON object. With no image, `imajev classify -l billing,shipping -q 'Which team should handle this request?' -s 'My card was charged twice'` answers from the text alone. `--format json` prints one object per image.
 
 ## Predict (JSONL)
 
@@ -68,7 +70,7 @@ echo '{"image": "listing.jpg", "state": {"listing": {"color": "red", "product_ty
 Questions are `{"type": "choice" | "noul" | "score", "instructions", "criteria"}`. Instructions may name state keys in
 backticks. `choice` criteria are `{option: description | null}`, `noul` criteria are an optional
 `{"true": .., "false": ..}`, `score` criteria are an ordered list of 2–10 level descriptions. A request has up to 8
-questions and one image (JPEG or PNG, up to 20 MiB).
+questions and an optional image (JPEG or PNG, up to 20 MiB).
 
 ## Serve over HTTP
 
@@ -89,7 +91,7 @@ curl -s localhost:8765/v1/systemone \
 
 | Endpoint | Description |
 | --- | --- |
-| `POST /v1/systemone` | multipart: `request` (JSON `{"state", "questions", "model"?}`) and one `image` |
+| `POST /v1/systemone` | multipart: `request` (JSON `{"state", "questions", "model"?}`) and an optional `image` |
 | `POST /v1/classifier` | Exact alias of `/v1/systemone` |
 | `GET /health` | `{"status":"ready","model":"imajev-4b"}`, no inference |
 
@@ -122,7 +124,7 @@ let mut engine = Engine::from_pretrained(&Device::new_cuda(0)?)?;
 let questions = serde_json::json!({"page_type": {"type": "choice",
     "instructions": "Choose the best page role.",
     "criteria": {"exercise": "A question or task for a student.", "theory": "Explanations or reference material."}}});
-let answers = engine.decide(&State::from("Practice questions"), &questions, &std::fs::read("page.jpg")?)?;
+let answers = engine.decide(&State::from("Practice questions"), &questions, Some(&std::fs::read("page.jpg")?))?;
 println!("{:?} {:.2}", answers[0].1.choice, answers[0].1.confidence);
 println!("{}", answers_to_json(&answers));
 ```

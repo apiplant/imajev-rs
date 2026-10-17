@@ -256,7 +256,7 @@ export function Home() {
             Imajev, <span class="text-accent">in Rust</span>.
           </h1>
           <p class="mt-4 max-w-lg text-lg leading-relaxed text-muted">
-            Ask questions about a photo and the record that goes with it. Get an answer in the options you
+            Ask questions about a photo and the record that goes with it, or about the text alone. Get an answer in the options you
             set, a probability on each, and an explicit can't-tell. Run it from a CLI, an HTTP server or
             your own Rust code.
           </p>
@@ -328,7 +328,7 @@ let questions = serde_json::json!({"page_type": {"type": "choice",
     "instructions": "Choose the best page role.",
     "criteria": {"exercise": "A question or task for a student.",
                  "theory": "Explanations or reference material."}}});
-let answers = engine.decide(&State::from("Practice questions"), &questions, &std::fs::read("page.jpg")?)?;
+let answers = engine.decide(&State::from("Practice questions"), &questions, Some(&std::fs::read("page.jpg")?))?;
 println!("{:?}", answers[0].1.choice);`}</Pre>
       </section>
     </div>

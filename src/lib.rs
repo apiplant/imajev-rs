@@ -14,7 +14,7 @@
 //! let questions = serde_json::json!({"page_type": {"type": "choice",
 //!     "instructions": "Choose the best page role.",
 //!     "criteria": {"exercise": "A question or task for a student.", "theory": "Explanations or reference material."}}});
-//! let answers = engine.decide(&State::from("Practice questions"), &questions, &std::fs::read("page.jpg")?)?;
+//! let answers = engine.decide(&State::from("Practice questions"), &questions, Some(&std::fs::read("page.jpg")?))?;
 //! println!("{}", answers_to_json(&answers));
 //! # anyhow::Ok(())
 //! ```

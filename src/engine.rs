@@ -11,7 +11,7 @@
 //! let questions = serde_json::json!({"page_type": {"type": "choice",
 //!     "instructions": "Choose the best page role.",
 //!     "criteria": {"exercise": "A question or task for a student.", "theory": "Explanations or reference material."}}});
-//! let answers = engine.decide(&State::from("Practice questions"), &questions, &std::fs::read("page.jpg")?)?;
+//! let answers = engine.decide(&State::from("Practice questions"), &questions, Some(&std::fs::read("page.jpg")?))?;
 //! println!("{} ({:.2})", answers[0].1.choice.as_deref().unwrap_or("unknown"), answers[0].1.confidence);
 //! # anyhow::Ok(())
 //! ```
@@ -246,33 +246,42 @@ impl Engine {
 
     /// Validates a request without running the model: the question shape and the image size.
     /// Every error is an [`InvalidRequest`].
-    pub fn validate(&self, questions: &Value, image: &[u8]) -> Result<Vec<Question>> {
+    pub fn validate(&self, questions: &Value, image: Option<&[u8]>) -> Result<Vec<Question>> {
         validate_request(questions, image, self.max_options())
     }
 
     /// Answers every question in `questions` (`{id: {"type": "choice", "instructions", "criteria"}}`) about the
     /// image (JPEG or PNG) and the state. Each question is shown in up to four option orders and the log
     /// probabilities are averaged, then calibrated.
-    pub fn decide(&mut self, state: &State, questions: &Value, image: &[u8]) -> Result<Answers> {
+    ///
+    /// `image` is optional: without one the question is answered from the state alone, through the same
+    /// prompt minus the vision tokens.
+    pub fn decide(&mut self, state: &State, questions: &Value, image: Option<&[u8]>) -> Result<Answers> {
         let questions = self.validate(questions, image)?;
         let state_text = python_json(&state.0);
-        let prepared = prepare_page_image(image, &self.device).map_err(|e| InvalidRequest(format!("cannot use the image: {e}")))?;
-        if prepared.image_tokens > 2048 {
-            invalid!("page image expands to more than 2048 visual tokens");
-        }
-        let (visual_features, _) = self.vision.forward(&prepared.pixel_values, &prepared.grid_thw)?;
-        let visual_features = visual_features.to_dtype(DType::F32)?;
-        ensure!(visual_features.dim(0)? == prepared.image_tokens, "vision tower emitted a different number of image tokens than the processor grid");
+        let visual = match image {
+            None => None,
+            Some(bytes) => {
+                let prepared = prepare_page_image(bytes, &self.device).map_err(|e| InvalidRequest(format!("cannot use the image: {e}")))?;
+                if prepared.image_tokens > 2048 {
+                    invalid!("page image expands to more than 2048 visual tokens");
+                }
+                let (features, _) = self.vision.forward(&prepared.pixel_values, &prepared.grid_thw)?;
+                let features = features.to_dtype(DType::F32)?;
+                ensure!(features.dim(0)? == prepared.image_tokens, "vision tower emitted a different number of image tokens than the processor grid");
+                Some((prepared, features))
+            }
+        };
 
         let mut answers = Vec::with_capacity(questions.len());
         for question in &questions {
-            let answer = self.answer(question, &state_text, &prepared, &visual_features)?;
+            let answer = self.answer(question, &state_text, visual.as_ref().map(|(p, f)| (p, f)))?;
             answers.push((question.id.clone(), answer));
         }
         Ok(answers)
     }
 
-    fn answer(&mut self, question: &Question, state_text: &str, prepared: &crate::vision::PreparedPageImage, visual_features: &Tensor) -> Result<Answer> {
+    fn answer(&mut self, question: &Question, state_text: &str, visual: Option<(&crate::vision::PreparedPageImage, &Tensor)>) -> Result<Answer> {
         let n_known = question.keys.len();
         let n = n_known + 1;
         let labels: Vec<&str> = self.manifest.codes[..n].iter().map(|c| c.code.as_str()).collect();
@@ -290,13 +299,18 @@ impl Engine {
         let offsets = cyclic_offsets(n, ROTATIONS);
         for (pass, &offset) in offsets.iter().enumerate() {
             let candidates = (0..n).map(|position| format!("{}: {}", labels[position], texts[(position + offset) % n])).collect::<Vec<_>>().join("\n");
+            let vision_tokens = if visual.is_some() { "<|vision_start|><|image_pad|><|vision_end|>" } else { "" };
             let rendered = format!(
-                "<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{header}{candidates}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+                "<|im_start|>user\n{vision_tokens}{header}{candidates}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
             );
             let encoded = self.tokenizer.encode(rendered.as_str(), false).map_err(|e| anyhow::anyhow!(e))?;
             let source_ids = encoded.get_ids();
             let image_markers = source_ids.iter().filter(|&&id| id == IMAGE_PAD_ID).count();
-            ensure!(self.image_token_id == IMAGE_PAD_ID && image_markers == 1 && source_ids.contains(&VISION_START_ID), "rendered Imajev request does not match the Qwen3.5 image token layout");
+            let expected_markers = usize::from(visual.is_some());
+            ensure!(
+                self.image_token_id == IMAGE_PAD_ID && image_markers == expected_markers && source_ids.contains(&VISION_START_ID) == visual.is_some(),
+                "rendered Imajev request does not match the Qwen3.5 image token layout"
+            );
             if pass == 0 {
                 // The answer boundary is the same for every option order, so the labels are bound once per question.
                 for (index, label) in labels.iter().enumerate() {
@@ -305,9 +319,10 @@ impl Engine {
                 }
             }
 
-            let mut ids = Vec::with_capacity(source_ids.len() + prepared.image_tokens - 1);
+            let image_tokens = visual.map_or(0, |(prepared, _)| prepared.image_tokens);
+            let mut ids = Vec::with_capacity(source_ids.len() + image_tokens);
             for &id in source_ids {
-                if id == IMAGE_PAD_ID { ids.extend(std::iter::repeat_n(id, prepared.image_tokens)); }
+                if id == IMAGE_PAD_ID { ids.extend(std::iter::repeat_n(id, image_tokens)); }
                 else { ids.push(id); }
             }
             if ids.len() > MAX_INPUT_TOKENS {
@@ -317,7 +332,7 @@ impl Engine {
             let mut positions = Vec::with_capacity(ids.len());
             let mut position = 0usize;
             for &id in source_ids {
-                if id == IMAGE_PAD_ID {
+                if let (IMAGE_PAD_ID, Some((prepared, _))) = (id, visual) {
                     let base = position;
                     for row in 0..(prepared.grid_h / 2) {
                         for col in 0..(prepared.grid_w / 2) {
@@ -332,16 +347,21 @@ impl Engine {
             }
             ensure!(positions.len() == ids.len(), "multimodal rotary positions do not match the expanded input");
 
-            let image_start = ids.iter().position(|&id| id == IMAGE_PAD_ID).context("expanded image placeholders missing")?;
             let embeddings = self.text.embed_tokens(&ids)?;
-            let before = if image_start == 0 { None } else { Some(embeddings.narrow(0, 0, image_start)?) };
-            let after_start = image_start + prepared.image_tokens;
-            let after = if after_start == ids.len() { None } else { Some(embeddings.narrow(0, after_start, ids.len() - after_start)?) };
-            let mut pieces: Vec<&Tensor> = Vec::with_capacity(3);
-            if let Some(t) = &before { pieces.push(t); }
-            pieces.push(visual_features);
-            if let Some(t) = &after { pieces.push(t); }
-            let embeds = Tensor::cat(&pieces, 0)?;
+            let embeds = match visual {
+                None => embeddings,
+                Some((prepared, visual_features)) => {
+                    let image_start = ids.iter().position(|&id| id == IMAGE_PAD_ID).context("expanded image placeholders missing")?;
+                    let before = if image_start == 0 { None } else { Some(embeddings.narrow(0, 0, image_start)?) };
+                    let after_start = image_start + prepared.image_tokens;
+                    let after = if after_start == ids.len() { None } else { Some(embeddings.narrow(0, after_start, ids.len() - after_start)?) };
+                    let mut pieces: Vec<&Tensor> = Vec::with_capacity(3);
+                    if let Some(t) = &before { pieces.push(t); }
+                    pieces.push(visual_features);
+                    if let Some(t) = &after { pieces.push(t); }
+                    Tensor::cat(&pieces, 0)?
+                }
+            };
 
             self.text.reset_state();
             let hidden = self.text.forward_hidden(embeds, &positions)?;
@@ -410,12 +430,14 @@ fn flatten_description(value: &Value) -> Option<String> {
 }
 
 /// Checks the image size and the question shape; every error is an [`InvalidRequest`].
-pub fn validate_request(questions: &Value, image: &[u8], max_options: usize) -> Result<Vec<Question>> {
-    if image.is_empty() {
-        invalid!("one page image is required");
-    }
-    if image.len() > MAX_IMAGE_BYTES {
-        invalid!("page image exceeds 20 MiB");
+pub fn validate_request(questions: &Value, image: Option<&[u8]>, max_options: usize) -> Result<Vec<Question>> {
+    if let Some(image) = image {
+        if image.is_empty() {
+            invalid!("the image is empty");
+        }
+        if image.len() > MAX_IMAGE_BYTES {
+            invalid!("page image exceeds 20 MiB");
+        }
     }
     parse_questions(questions, max_options)
 }
