@@ -1,8 +1,7 @@
 # imajev-rs website
 
 The marketing and documentation site for [imajev-rs](https://github.com/apiplant/imajev-rs), served at
-<https://imajev-rs.apiplant.com>. Solid 2 RC + Tailwind v4 + Vite, a static build deployed as a Cloudflare
-Workers assets-only site.
+<https://imajev-rs.apiplant.com>. Solid 2 RC + Tailwind v4 + Vite, a static build deployed to Cloudflare Pages.
 
 ```bash
 pnpm install
@@ -29,9 +28,10 @@ in sync with `../README.md` by hand.
 ## Deploying
 
 ```bash
-pnpm build && npx wrangler deploy
+pnpm build && npx wrangler pages deploy dist --project-name imajev-rs-website --branch main
 ```
 
-`wrangler.jsonc` sends unknown paths to `index.html`
-(`not_found_handling: single-page-application`) so deep links resolve on a cold load. The `imajev-rs.apiplant.com` custom domain is attached to the Worker in the Cloudflare account that owns the `apiplant.com` zone (Wrangler cannot do it from an account without that zone). `index.html`,
+The Pages project `imajev-rs-website` lives in the Cloudflare account that owns the `apiplant.com` zone, with the custom
+domain `imajev-rs.apiplant.com` (a proxied CNAME to `imajev-rs-website.pages.dev`). A static build with no 404 page
+makes Pages serve `index.html` for unknown paths, so deep links resolve on a cold load. `index.html`,
 `public/robots.txt` and `public/sitemap.xml` name that domain; update all three if the site moves.
