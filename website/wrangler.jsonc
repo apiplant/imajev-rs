@@ -10,8 +10,6 @@
     // index.html rather than a 404 and let Solid resolve the route.
     "not_found_handling": "single-page-application"
   },
-  // Served at imajev-rs.apiplant.com.
-  "routes": [{ "pattern": "imajev-rs.apiplant.com", "custom_domain": true }],
   "observability": {
     "enabled": true
   }

@@ -32,6 +32,6 @@ in sync with `../README.md` by hand.
 pnpm build && npx wrangler deploy
 ```
 
-`wrangler.jsonc` binds the `imajev-rs.apiplant.com` custom domain and sends unknown paths to `index.html`
-(`not_found_handling: single-page-application`) so deep links resolve on a cold load. `index.html`,
+`wrangler.jsonc` sends unknown paths to `index.html`
+(`not_found_handling: single-page-application`) so deep links resolve on a cold load. The `imajev-rs.apiplant.com` custom domain is attached to the Worker in the Cloudflare account that owns the `apiplant.com` zone (Wrangler cannot do it from an account without that zone). `index.html`,
 `public/robots.txt` and `public/sitemap.xml` name that domain; update all three if the site moves.
