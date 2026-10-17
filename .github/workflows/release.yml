@@ -113,9 +113,11 @@ jobs:
         env:
           # The runner has no GPU, so candle's build script can't query
           # nvidia-smi for the compute capability - pin one explicitly.
-          # 75 covers Turing (T4) through common consumer/datacenter cards;
-          # widen with a comma-separated list if you need to target others.
-          CUDA_COMPUTE_CAP: "75"
+          # 80 (Ampere) is the floor: candle-kernels 0.9's BF16 WMMA (MoE)
+          # kernels do not exist below sm_80, and its __hmax_nan/__hmin_nan
+          # shims are undefined for older targets on CUDA 12.1. The model
+          # runs in BF16 anyway. PTX is embedded, so newer GPUs JIT from it.
+          CUDA_COMPUTE_CAP: "80"
           # .cargo/config.toml pins the toolkit version of the maintainer's machine; this container has 12.1.
           CUDARC_CUDA_VERSION: "12010"
         run: cargo build --release --locked --bins --features cuda
@@ -164,7 +166,8 @@ jobs:
         run: |
           export PATH=/opt/cuda/bin:$PATH CUDA_PATH=/opt/cuda CUDA_HOME=/opt/cuda
           # major*1000 + minor*10 of the installed toolkit, overriding the pin in .cargo/config.toml
-          export CUDARC_CUDA_VERSION=$(nvcc --version | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1 \2/p' | awk '{print $1*1000+$2*10}')
+          # Clamped to 13.3: the newest toolkit cudarc 0.19 (via candle 0.9) knows; Arch's CUDA is newer.
+          export CUDARC_CUDA_VERSION=$(nvcc --version | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1 \2/p' | awk '{v=$1*1000+$2*10; print (v>13030)?13030:v}')
           cargo build --release --locked --bins --features cuda
 
       - name: Package

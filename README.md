@@ -26,7 +26,7 @@ sudo pacman -S imajev-rs        # Arch, after adding apiplant.github.io/pacman
 cargo install imajev-rs         # from source (add --features cuda for GPU)
 ```
 
-CUDA builds (Linux x86_64, NVIDIA GPU) are separate packages, `imajev-rs-cuda`, that conflict with `imajev-rs`. Setup
+CUDA builds (Linux x86_64, NVIDIA GPU with compute capability 8.0 or newer) are separate packages, `imajev-rs-cuda`, that conflict with `imajev-rs`. Setup
 commands for the apt and pacman repositories, plain archives and the release process are in
 [`packaging/README.md`](packaging/README.md).
 
