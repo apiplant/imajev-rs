@@ -35,6 +35,29 @@ The first run downloads the model files (about 10 GB: the 490 MB adapter and the
 `IMAJEV_OFFLINE=1` forbids downloading. Point at your own copies with `--adapter DIR` / `--base DIR`
 (`IMAJEV_ADAPTER_DIR`, `IMAJEV_BASE_DIR`).
 
+## Models
+
+Models live in `~/.cache/imajev-rs/` (`$XDG_CACHE_HOME/imajev-rs`), one directory per Hugging Face repo: the adapter `imajev-4b` and its base `Qwen3.5-4B` (about 10 GB together). `imajev download` fetches both ahead of time and prints the paths.
+
+If you already have the files (from `git lfs`, `hf download` or another machine), skip the download by putting them
+where it looks, or symlink them there:
+
+```sh
+mkdir -p ~/.cache/imajev-rs
+ln -s /path/to/imajev-4b ~/.cache/imajev-rs/imajev-4b
+```
+
+The cache holds:
+
+```
+~/.cache/imajev-rs/
+├── imajev-4b/      adapter_model.safetensors, decision_readout.safetensors,
+│                   decision_readout.json, adapter_config.json
+└── Qwen3.5-4B/     config.json, tokenizer.json, model.safetensors.index.json + the weight shards
+```
+
+Link each directory under its repo name, e.g. `ln -s /path/to/Qwen3.5-4B ~/.cache/imajev-rs/Qwen3.5-4B`. `--adapter DIR` / `--base DIR` (`IMAJEV_ADAPTER_DIR`, `IMAJEV_BASE_DIR`) point at copies anywhere else, and `IMAJEV_OFFLINE=1` makes a missing file an error instead of a download.
+
 ## Classify
 
 ```bash
